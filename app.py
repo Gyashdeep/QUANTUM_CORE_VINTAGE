@@ -1,133 +1,118 @@
 import os
 import time
-import requests
-import streamlit as st
+from contextlib import asynccontextmanager
+from typing import Dict, Any, List
 
-# Set page config once at the absolute top
-st.set_page_config(page_title="AETHER-FRACTAL // GOVERNOR CORE", page_icon="💠", layout="wide")
-
-# =====================================================================
-# 1. CYBERPUNK HUD TERMINAL STYLING
-# =====================================================================
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-    * { font-family: 'JetBrains+Mono', monospace !important; }
-    .reportview-container { background: #0A0A0C; }
-    .stMetric { background: #111216; border: 1px solid #1E2028; padding: 15px; border-radius: 4px; }
-    .stMetric label { color: #8F93A2 !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: 1px; }
-    .stMetric div { color: #00FF66 !important; font-weight: 700 !important; }
-    div.stButton > button { background-color: #111216; color: #00FF66; border: 1px solid #00FF66; font-weight: bold; width: 100%; transition: all 0.3s; }
-    div.stButton > button:hover { background-color: #00FF66; color: #0A0A0C; box-shadow: 0 0 15px rgba(0,255,102,0.6); }
-    </style>
-""", unsafe_allow_html=True)
+import uvicorn
+import orjson  # Rust-based serialization
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import ORJSONResponse 
+from pydantic import BaseModel, Field, ValidationError
+from groq import AsyncGroq, RateLimitError  
 
 # =====================================================================
-# 2. RUNTIME DASHBOARD HEADER
+# 1. HARDWARE BOUNDARY ENFORCEMENT (The Physics Firewall)
 # =====================================================================
-st.markdown("<h1 style='color: #FFFFFF; font-size: 26px; margin-bottom: 0px;'>💠 AETHER-FRACTAL // CORE HUD</h1>", unsafe_allow_html=True)
-st.markdown("<p style='color: #4E5266; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;'>Autonomous Edge Actuation & Sovereign Hardware Governance Subsystem</p>", unsafe_allow_html=True)
-st.markdown("<hr style='border-color: #1E2028; margin-top: 10px; margin-bottom: 20px;' />", unsafe_allow_html=True)
+class ActuationCommand(BaseModel):
+    target_node_id: str
+    action: str = Field(description="Must match exact hardware registry operation codes.")
+    intensity_percentage: int = Field(ge=0, le=100, description="Clamp bounds to prevent kinetic damage.")
+    risk_mitigation_reason: str
 
-col_left, col_right = st.columns([1, 2])
+class TelemetryPayload(BaseModel):
+    telemetry_context: Dict[str, Any]
+    query_anomaly: str
+
+ACTUATION_TOOL = [
+    {
+        "type": "function",
+        "function": {
+            "name": "actuate_cluster_state",
+            "description": "Executes immediate hardware actuation overrides based on cluster telemetry anomalies.",
+            "parameters": ActuationCommand.model_json_schema()
+        }
+    }
+]
+
+MODEL_FALLBACK_CASCADE: List[str] = [
+    "deepseek-r1-distill-qwen-1.5b",
+    "llama3-70b-8192"
+]
 
 # =====================================================================
-# 3. LEFT PANEL: LIVE TELEMETRY INGESTION INPUTS
+# 2. CORE LOGIC (Safe to Import Anywhere - No FastAPI Dependencies)
 # =====================================================================
-with col_left:
-    st.markdown("<p style='color: #FF3366; font-size: 12px; font-weight: bold;'>⚡ LIVE TELEMETRY SIMULATOR</p>", unsafe_allow_html=True)
-    
-    node_id = st.selectbox("TARGET INSTANCE NODE", ["NODE_ALPHA_01", "NODE_ALPHA_04", "NODE_OMEGA_09"])
-    temp = st.slider("SILICON TEMP (°C)", min_value=40.0, max_value=120.0, value=94.2, step=0.1)
-    power = st.slider("POWER DRAW (kW)", min_value=1.0, max_value=30.0, value=14.8, step=0.1)
-    flow = st.slider("COOLANT FLOW (LPM)", min_value=0.5, max_value=10.0, value=2.1, step=0.1)
-    
-    anomaly_msg = st.text_area(
-        "CRITICAL ANOMALY EVENT TRIGGER", 
-        value="Thermal vector spike exceeding 92C threshold during localized training job load."
+async def run_resilient_cascade(client: AsyncGroq, telemetry: Dict[str, Any], anomaly: str) -> Dict[str, Any]:
+    system_prompt = (
+        "SYSTEM CRITICAL: You are an autonomous industrial hardware controller. "
+        "Analyze the provided live telemetry state vectors and execute the required function tool. "
+        "Do not output conversational text or pleasantries. Output raw JSON function arguments only."
     )
     
-    trigger_actuation = st.button("DISPATCH COMMAND")
+    serialized_vectors = orjson.dumps(telemetry).decode("utf-8")
+    user_content = f"TELEMETRY STATE VECTORS:\n{serialized_vectors}\n\nCRITICAL ANOMALY EVENT: {anomaly}"
 
-# =====================================================================
-# 4. RIGHT PANEL: DETERMINISTIC MONITORING FRONTEND
-# =====================================================================
-with col_right:
-    if trigger_actuation:
-        # Build payload structurally matching our TelemetryPayload schema
-        payload = {
-            "telemetry_context": {
-                "node_id": node_id,
-                "silicon_temperature_celsius": temp,
-                "power_draw_kw": power,
-                "coolant_flow_rate_lpm": flow
-            },
-            "query_anomaly": anomaly_msg
-        }
-        
-        command = None
-        elapsed = 0.0
-        status_msg = "UNKNOWN"
-        
-        # --- EXECUTION PATHWAY DUAL-MATRIX ---
+    for model in MODEL_FALLBACK_CASCADE:
         try:
-            # PATHWAY A: Local Mode (Hit your decoupled FastAPI Engine on port 8000)
-            response = requests.post("http://127.0.0.1:8000/api/v1/actuate", json=payload, timeout=2)
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                tools=ACTUATION_TOOL,
+                tool_choice={"type": "function", "function": {"name": "actuate_cluster_state"}},
+                temperature=0.0
+            )
             
-            if response.status_code == 200:
-                res_data = response.json()
-                command = res_data["command"]
-                elapsed = res_data["elapsed_ms"]
-                status_msg = res_data["status"]
-            else:
-                st.error(f"ENGINE CRITICAL ERROR: Gateway returned status code {response.status_code}")
-                
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-            # PATHWAY B: Cloud Fallback Mode (Runs internal inference loops via Streamlit Secrets)
-            try:
-                import main  # Imports your core main.py structure natively
-                from groq import AsyncGroq
-                import asyncio
-                
-                # Extract encrypted cloud API secret key
-                api_key = st.secrets.get("GROQ_API_KEY") if "GROQ_API_KEY" in st.secrets else os.environ.get("GROQ_API_KEY")
-                
-                if not api_key:
-                    st.error("AIR-GAP CRITICAL INTERVENTION: GROQ_API_KEY missing from system environment & Streamlit Secrets.")
-                else:
-                    client = AsyncGroq(api_key=api_key)
-                    start_time = time.perf_counter()
-                    
-                    # Direct async processing execution loop wrapper without microservice call
-                    command = asyncio.run(main.run_resilient_cascade(
-                        client=client, 
-                        telemetry=payload["telemetry_context"], 
-                        anomaly=payload["query_anomaly"]
-                    ))
-                    
-                    elapsed = round((time.perf_counter() - start_time) * 1000, 2)
-                    status_msg = "SUCCESS (CLOUD DIRECT)"
-            except Exception as cloud_err:
-                st.error(f"RUNTIME PANIC: Failed cloud execution context loop. Details: {cloud_err}")
+            raw_args = response.choices[0].message.tool_calls[0].function.arguments
+            parsed_json = orjson.loads(raw_args)
+            
+            validated_command = ActuationCommand(**parsed_json)
+            return validated_command.model_dump()
+            
+        except (ValidationError, orjson.JSONDecodeError) as schema_err:
+            print(f"[FIREWALL] Structural anomaly on {model}: {schema_err}")
+            continue
+        except RateLimitError:
+            print(f"[TRAFFIC] Shift cascade on {model} due to 429 constraints.")
+            continue
+        except Exception as api_err:
+            print(f"[NETWORK] Failure on {model}: {api_err}")
+            continue
 
-        # Render Live Analytics Metric Strips if inference pipeline passes firewall
-        if command:
-            m1, m2, m3 = st.columns(3)
-            m1.metric(label="GATEWAY PIPELINE", value=status_msg)
-            m2.metric(label="LOOP LATENCY", value=f"{elapsed} ms")
-            m3.metric(label="FIREWALL CLAMP", value="ACTIVE (100%)")
-            
-            st.markdown("<p style='color: #00FF66; font-size: 12px; font-weight: bold; margin-top: 20px;'>🛡️ VERIFIED HARDWARE COMMAND OUTBOUND PAYLOAD</p>", unsafe_allow_html=True)
-            st.json(command)
-            
-            # System decision breakdown
-            st.info(f"**GOVERNOR DECISION RATIONALE:** {command['risk_mitigation_reason']}")
-            
-    else:
-        # Default Dashboard Display when awaiting interaction
-        m1, m2, m3 = st.columns(3)
-        m1.metric(label="GATEWAY STATUS", value="ONLINE")
-        m2.metric(label="LOOP LATENCY", value="0.00 ms")
-        m3.metric(label="FIREWALL CLAMP", value="READY")
-        
-        st.markdown("<div style='border: 1px dashed #1E2028; padding: 40px; text-align: center; color: #4E5266; margin-top: 20px; font-size: 12px;'>SYSTEM IDLE // AWAITING STREAM PAYLOAD TRANSMISSION</div>", unsafe_allow_html=True)
+    raise RuntimeError("CRITICAL SHUTDOWN: Entire multi-model fallback loop exhausted.")
+
+# =====================================================================
+# 3. ISOLATED WEB SERVER GATEWAY LAYER 
+# =====================================================================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("CRITICAL SHUTDOWN: GROQ_API_KEY unassigned.")
+    app.state.ai_client = AsyncGroq(api_key=api_key)
+    yield  
+    await app.state.ai_client.close()
+
+# FastAPI instantiation wrapper
+app = FastAPI(title="AETHER-FRACTAL Core Engine", lifespan=lifespan, default_response_class=ORJSONResponse)
+
+@app.post("/api/v1/actuate", status_code=status.HTTP_200_OK)
+async def handle_telemetry_actuation(payload: TelemetryPayload):
+    start_time = time.perf_counter()
+    try:
+        client: AsyncGroq = app.state.ai_client
+        command = await run_resilient_cascade(
+            client=client,
+            telemetry=payload.telemetry_context,
+            anomaly=payload.query_anomaly
+        )
+        processing_ms = (time.perf_counter() - start_time) * 1000
+        return {"status": "SUCCESS", "elapsed_ms": round(processing_ms, 2), "command": command}
+    except RuntimeError as ex:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(ex))
+
+if __name__ == "__main__":
+    # Standard standard asyncio event loop to ensure complete multi-platform stability
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, log_level="info")
