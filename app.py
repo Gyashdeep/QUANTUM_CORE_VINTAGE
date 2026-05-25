@@ -1,62 +1,42 @@
 import streamlit as st
-import sqlite3
-import pandas as pd
-import asyncio
-import os
 import psutil
+import pandas as pd
+import json
 from groq import AsyncGroq
+from collections import deque
 
-# CONFIGURATION // QUANTUM-CORE VANTAGE
-st.set_page_config(page_title="VANTAGE // KINETIC ARBITRAGE", layout="wide")
-st.markdown("""
-    <style>
-    .stApp { background: #050505; color: #00FF66; font-family: 'JetBrains Mono', monospace; }
-    </style>
-""", unsafe_allow_html=True)
+# --- HIGH-FREQUENCY MEMORY MANIFOLD ---
+if "ledger" not in st.session_state:
+    st.session_state.ledger = deque(maxlen=50) # Sovereign short-term memory
 
-st.title("💠 QUANTUM-CORE // VANTAGE")
-st.markdown("### Autonomous Kinetic Arbitrage & Sovereign Silicon Governance")
-
-# --- SOVEREIGN GOVERNANCE ENGINE ---
-async def execute_sovereign_logic():
-    # 1. Hardware Telemetry
+# --- THE SOVEREIGN FRAGMENT ---
+@st.fragment(run_every="500ms")
+def sovereign_governance_pulse():
     telemetry = {
-        "cpu_load": psutil.cpu_percent(),
-        "mem_load": psutil.virtual_memory().percent,
-        "ts": pd.Timestamp.now().isoformat()
+        "cpu": psutil.cpu_percent(),
+        "mem": psutil.virtual_memory().percent,
+        "delta": "high_freq_drift_detected"
     }
     
-    # 2. Autonomous Decision Logic
-    client = AsyncGroq(api_key=st.secrets.get("GROQ_API_KEY"))
-    prompt = f"ACT AS QUANTUM-CORE VANTAGE. Analyze {telemetry}. Output ONLY JSON: {{'decision': 'BOOST/THROTTLE', 'rationale': '...', 'yield_pct': '...'}}"
+    # AI Governance Decision
+    client = AsyncGroq(api_key=st.secrets["GROQ_API_KEY"])
+    prompt = f"SYS: {telemetry}. GOAL: Maximize sovereign yield. JSON ONLY: {{'cmd': '...', 'yield': '...'}}"
     
-    response = await client.chat.completions.create(
+    # In production, use a non-blocking task call
+    loop = asyncio.new_event_loop()
+    response = loop.run_until_complete(client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "system", "content": prompt}],
         temperature=0.0
-    )
+    ))
     
-    decision = response.choices[0].message.content
-    
-    # 3. Persistent Ledger
-    conn = sqlite3.connect("quantum_ledger.db")
-    conn.execute("CREATE TABLE IF NOT EXISTS logs (ts REAL, telemetry TEXT, decision TEXT)")
-    conn.execute("INSERT INTO logs VALUES (?, ?, ?)", (pd.Timestamp.now().timestamp(), str(telemetry), decision))
-    conn.commit()
-    conn.close()
-    return decision
+    decision = json.loads(response.choices[0].message.content)
+    st.session_state.ledger.appendleft({"ts": pd.Timestamp.now(), **decision})
 
-# --- INTERFACE ---
-if st.button("INITIATE KINETIC ARBITRAGE"):
-    with st.spinner("Vantage Governor calculating optimal silicon state..."):
-        decision = asyncio.run(execute_sovereign_logic())
-        st.json(decision)
+# --- UI: THE CONTROL TERMINAL ---
+st.title("💠 AEON-FLUX // SINGULARITY")
+sovereign_governance_pulse()
 
-st.subheader("SYSTEM AUDIT TRAIL")
-try:
-    conn = sqlite3.connect("quantum_ledger.db")
-    df = pd.read_sql("SELECT * FROM logs ORDER BY ts DESC", conn)
-    st.dataframe(df, use_container_width=True)
-    conn.close()
-except:
-    st.info("System awaiting first Sovereign Ping.")
+st.subheader("LIVE NEURAL AUDIT")
+if st.session_state.ledger:
+    st.table(list(st.session_state.ledger)[:10])
