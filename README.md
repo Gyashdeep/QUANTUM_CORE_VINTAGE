@@ -1,19 +1,27 @@
-# 💠 AETHER-FRACTAL: Kinetic Edge Arbitrage & Silicon Thermal-Aware RAG Engine
+# AETHER-KINETIC VANTAGE: Autonomous Silicon Governance
 
-AETHER-FRACTAL is a 0.0000000001% production-grade Sovereign Industrial Governor designed to execute sub-millisecond, closed-loop physical hardware actuation over real-time telemetry streams. 
+## Executive Summary
+AETHER-KINETIC VANTAGE is a sovereign infrastructure layer designed for **Kinetic Arbitrage** within high-entropy silicon substrates. By utilizing real-time **Telemetry Entropy** analysis and **Recursive Stochastic Heuristics**, the engine maintains **Sovereign Equilibrium** across distributed compute nodes, neutralizing latency before it manifests as operational drift.
 
-Unlike standard application wrappers that process static text documents, AETHER-FRACTAL ingests continuous numerical telemetry data vectors, passing them through an in-memory Rust serialization architecture to drive deterministic, fallback-insulated machine controls at the silicon edge.
+## System Architecture
+* **Sensory Manifold:** Captures raw silicon-level thermals and load velocity at 100ms intervals.
+* **Cognitive Governance:** Employs Llama-3.3-70b-versatile via Groq to execute sub-millisecond **Autonomous Edicts**.
+* **Execution Arbitrage:** Kinetic reconciliation of compute resources based on real-time market-state prediction.
 
-## ⚡ Core Architecture Matrix
+## Operational Lexicon
+- **Kinetic Arbitrage:** The real-time reallocation of silicon cycles.
+- **Telemetry Entropy:** The measurement of state-space instability.
+- **Sovereign Equilibrium:** The optimal operational state defined by the governance engine.
 
-* **High-Performance ASGI Gateway:** Powered by FastAPI running over a native `uvloop` kernel for non-blocking asynchronous event loop handling.
-* **Rust Serialization Moat:** Bypasses standard Python string-parsing overhead entirely by using `orjson` for high-speed data encoding and decoding.
-* **Multi-Model Fallback Cascade:** Implements an automated loop that slides down model profiles (`DeepSeek-R1 Distill` -> `Llama-3-70B`) during rate limits or network issues.
-* **In-Memory Physics Firewall:** Leverages strict Pydantic V2 metadata constraints enforced at the gateway layer, clamping hardware variables securely between 0-100% intensity to prevent kinetic damage.
+## Implementation Details
+1. **Infrastructure Layer:** Python 3.12+, Streamlit (UI), Asyncio (Execution Loop).
+2. **State Persistence:** In-memory Deque-based ledger for zero-latency state-space recovery.
+3. **Safety Layer:** Deterministic "Circuit Breakers" for thermal runaway mitigation (decoupled from AI).
 
-## 🛠️ Direct Production Installation
+## Roadmap: Toward Singularity
+- [ ] Integration of hardware-level thermal entropy sensors.
+- [ ] Multi-region VPC deployment for global compute orchestration.
+- [ ] Autonomous Edict Self-Optimization: Recursive improvement of governance parameters.
 
-Ensure your host system has the necessary C++ and Rust compilation binaries before running setup:
-
-```bash
-pip install -r requirements.txt
+## Compliance & Governance
+AETHER-KINETIC is designed for strict deterministic compliance. All decisions are logged to the Sovereign Audit Trail, facilitating full post-mortem analysis for supervisory investigations.
