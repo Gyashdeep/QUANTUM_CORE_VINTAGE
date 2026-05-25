@@ -1,42 +1,32 @@
-import streamlit as st
 import psutil
-import pandas as pd
 import json
+import asyncio
 from groq import AsyncGroq
-from collections import deque
+import streamlit as st
 
-# --- HIGH-FREQUENCY MEMORY MANIFOLD ---
-if "ledger" not in st.session_state:
-    st.session_state.ledger = deque(maxlen=50) # Sovereign short-term memory
-
-# --- THE SOVEREIGN FRAGMENT ---
-@st.fragment(run_every="500ms")
-def sovereign_governance_pulse():
+async def execute_sovereign_edict():
+    # Capture Telemetry Entropy
     telemetry = {
-        "cpu": psutil.cpu_percent(),
-        "mem": psutil.virtual_memory().percent,
-        "delta": "high_freq_drift_detected"
+        "cpu_load": psutil.cpu_percent(interval=0.1),
+        "mem_load": psutil.virtual_memory().percent,
+        "status": "OPERATIONAL"
     }
     
-    # AI Governance Decision
+    # Cognitive Governance via Groq LPU
     client = AsyncGroq(api_key=st.secrets["GROQ_API_KEY"])
-    prompt = f"SYS: {telemetry}. GOAL: Maximize sovereign yield. JSON ONLY: {{'cmd': '...', 'yield': '...'}}"
+    prompt = f"""
+    SYSTEM: AETHER-KINETIC VANTAGE. 
+    CONTEXT: {telemetry}. 
+    TASK: Execute kinetic arbitrage for sovereign yield.
+    OUTPUT: JSON ONLY: {{ "decision": "...", "yield": "...", "rationale": "..." }}
+    """
     
-    # In production, use a non-blocking task call
-    loop = asyncio.new_event_loop()
-    response = loop.run_until_complete(client.chat.completions.create(
+    response = await client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "system", "content": prompt}],
         temperature=0.0
-    ))
-    
-    decision = json.loads(response.choices[0].message.content)
-    st.session_state.ledger.appendleft({"ts": pd.Timestamp.now(), **decision})
+    )
+    return json.loads(response.choices[0].message.content)
 
-# --- UI: THE CONTROL TERMINAL ---
-st.title("💠 AEON-FLUX // SINGULARITY")
-sovereign_governance_pulse()
-
-st.subheader("LIVE NEURAL AUDIT")
-if st.session_state.ledger:
-    st.table(list(st.session_state.ledger)[:10])
+def run_governance_pulse():
+    return asyncio.run(execute_sovereign_edict())
